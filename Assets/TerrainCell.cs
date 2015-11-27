@@ -17,6 +17,16 @@ public class TerrainCell : MonoBehaviour {
 		meshRenderer.material.mainTexture = texture;
 		meshFilter.mesh = GenerateMesh (heightmap);
 	}
+
+    public void UpdateMesh()
+    {
+        try
+        {
+            MeshFilter meshFilter = gameObject.GetComponent<MeshFilter>();
+            meshFilter.mesh = GenerateMesh(heightmap);
+        }
+        catch (MissingComponentException) { }
+    }
 	
 	Mesh GenerateMesh(HeightMap heightmap) {
 		Mesh mesh = new Mesh ();
@@ -24,17 +34,15 @@ public class TerrainCell : MonoBehaviour {
 		List<Vector3> verts = new List<Vector3> ();
 		List<Vector2> uvs = new List<Vector2>();
 		
-		for (int z = 0; z < depth; z++) {
-			for (int x = 0; x < width; x++) {
-                int xPos = (int)(transform.position.x / transform.parent.localScale.x) + x;
-                int zPos = (int)(transform.position.z / transform.parent.localScale.z) + z;
-                verts.AddRange (GenerateQuad (new Vector3 (x - width / 2, 0, z - depth / 2),
-				                              heightmap.GetHeight(xPos, zPos) * height,
-				                              heightmap.GetHeight(xPos, zPos + 1) * height,
-				                              heightmap.GetHeight(xPos + 1, zPos) * height,
-				                              heightmap.GetHeight(xPos + 1, zPos + 1) * height
+		for (int z = -depth / 2; z < depth / 2; z++) {
+			for (int x = -width / 2; x < width / 2; x++) {
+                verts.AddRange (GenerateQuad (new Vector3 (x, 0, z),
+				                              heightmap.GetHeight(x, z) * height,
+				                              heightmap.GetHeight(x, z + 1) * height,
+				                              heightmap.GetHeight(x + 1, z) * height,
+				                              heightmap.GetHeight(x + 1, z + 1) * height
 				                              ));
-				uvs.AddRange (GenerateUvQuad (new Vector2 (x, z)));
+				uvs.AddRange (GenerateUvQuad (new Vector2 (x + width / 2, z + depth / 2)));
 			}
 		}
 		
@@ -77,15 +85,18 @@ public class HeightMap {
 
     HeightMapDatum[,] heightmap;
     int width, depth;
-	
-	public HeightMap(int width, int depth) {
-		heightmap = new HeightMapDatum[width, depth];
+    public HeightMap xNeighbour;
+    public HeightMap zNeighbour;
+    public HeightMap xzNeighbour;
+
+    public HeightMap(int width, int depth, Vector2 offset) {
+        heightmap = new HeightMapDatum[width, depth];
 
         for (int z = 0; z < depth; z++)
         {
             for (int x = 0; x < width; x++)
             {
-                heightmap[x, z].height = Mathf.PerlinNoise((float)x / 5, (float)z / 5);
+                heightmap[x, z].height = Mathf.PerlinNoise((x + offset.x) / 5, (z + offset.y) / 5);
             }
         }
 
@@ -93,14 +104,40 @@ public class HeightMap {
         this.depth = depth;
     }
 
-	public float GetHeight(int x, int z) {
-        try
-        {
+    public float GetHeight(int x, int z) {
+        if (x < width / 2 && z < depth / 2)
             return heightmap[x + width / 2, z + depth / 2].height;
-        }
-        catch (System.IndexOutOfRangeException)
-        {
-            return 0;
-        }
+
+        if (x == width / 2 && z < depth / 2)
+            try
+            {
+                return xNeighbour.heightmap[0, z + depth / 2].height;
+            }
+            catch (System.NullReferenceException)
+            {
+                return heightmap[width - 1, z + depth / 2].height;
+            }
+
+        if (x < width / 2 && z == depth / 2)
+            try
+            {
+                return zNeighbour.heightmap[x + width / 2, 0].height;
+            }
+            catch (System.NullReferenceException)
+            {
+                return heightmap[x + width / 2, depth - 1].height;
+            }
+        
+        if (x == width / 2 && z == depth / 2)
+            try
+            {
+                return xzNeighbour.heightmap[0, 0].height;
+            }
+            catch (System.NullReferenceException)
+            {
+                return heightmap[width - 1, depth - 1].height;
+            }
+
+        return 4;
 	}
 }

@@ -8,13 +8,11 @@ public class TerrainGenerator : MonoBehaviour
 	public GameObject target;
 
 	Dictionary<Vector2, GameObject> cells;
-
-	HeightMap heightmap;
+    
 
 	void Start ()
     {
 		cells = new Dictionary<Vector2, GameObject>();
-        heightmap = new HeightMap(8000, 8000);
     }
 
 	Texture2D GenerateTexture(HeightMap heightmap, Vector3 offset, int width, int depth)
@@ -26,17 +24,22 @@ public class TerrainGenerator : MonoBehaviour
         {
 			for (int x = 0; x < width; x++)
             {
-				colors[x + z * width] = new Color(0, 0, 1 - heightmap.GetHeight((int)offset.x + x, (int)offset.z + z));
+				colors[x + z * width] = new Color(
+                    Mathf.PingPong((offset.x + x) / 100, 1),
+                    Mathf.PingPong((offset.z + z) / 100, 1),
+                    1 - heightmap.GetHeight((int)offset.x + x, (int)offset.z + z)
+                );
 			}
 		}
 
 		texture.SetPixels(colors);
 		texture.Apply ();
         texture.wrapMode = TextureWrapMode.Clamp;
+        texture.filterMode = FilterMode.Point;
 		return texture;
 	}
 
-	void UpdateCells(Vector3 center, float radius, int xScale, int zScale, HeightMap heightmap)
+	void UpdateCells(Vector3 center, float radius, int xScale, int zScale)
     {
         center = new Vector3(center.x / transform.localScale.x, center.y / transform.localScale.y, center.z / transform.localScale.z);
         HashSet<GameObject> validCells = new HashSet<GameObject> ();
@@ -67,8 +70,56 @@ public class TerrainGenerator : MonoBehaviour
                         cellComponent.width = xScale;
                         cellComponent.depth = zScale;
                         cellComponent.height = 1;
-                        cellComponent.heightmap = heightmap;
-                        cellComponent.texture = GenerateTexture(cellComponent.heightmap, new Vector3(x, 0, z), xScale, zScale);
+                        cellComponent.heightmap = new HeightMap(xScale, zScale, pos);
+                        
+                        try
+                        {
+                            TerrainCell neighbour = cells[new Vector2(x + xScale, z)].GetComponent<TerrainCell>();
+                            cellComponent.heightmap.xNeighbour = neighbour.heightmap;
+                        }
+                        catch (KeyNotFoundException) { }
+
+                        try
+                        {
+                            TerrainCell neighbour = cells[new Vector2(x, z + zScale)].GetComponent<TerrainCell>();
+                            cellComponent.heightmap.zNeighbour = neighbour.heightmap;
+                        }
+                        catch (KeyNotFoundException) { }
+
+                        try
+                        {
+                            TerrainCell neighbour = cells[new Vector2(x + xScale, z + zScale)].GetComponent<TerrainCell>();
+                            cellComponent.heightmap.xzNeighbour = neighbour.heightmap;
+                        }
+                        catch (KeyNotFoundException) { }
+
+
+
+                        try
+                        {
+                            TerrainCell neighbour = cells[new Vector2(x - xScale, z)].GetComponent<TerrainCell>();
+                            neighbour.heightmap.xNeighbour = cellComponent.heightmap;
+                            neighbour.UpdateMesh();
+                        }
+                        catch (KeyNotFoundException) { }
+
+                        try
+                        {
+                            TerrainCell neighbour = cells[new Vector2(x, z - zScale)].GetComponent<TerrainCell>();
+                            neighbour.heightmap.zNeighbour = cellComponent.heightmap;
+                            neighbour.UpdateMesh();
+                        }
+                        catch (KeyNotFoundException) { }
+
+                        try
+                        {
+                            TerrainCell neighbour = cells[new Vector2(x - xScale, z - zScale)].GetComponent<TerrainCell>();
+                            neighbour.heightmap.xzNeighbour = cellComponent.heightmap;
+                            neighbour.UpdateMesh();
+                        }
+                        catch (KeyNotFoundException) { }
+
+                        cellComponent.texture = GenerateTexture(cellComponent.heightmap, new Vector3(-xScale / 2, 0, -zScale / 2), xScale, zScale);
 
                         cells[pos] = cell;
                     }
@@ -83,7 +134,7 @@ public class TerrainGenerator : MonoBehaviour
 			GameObject cell = pair.Value;
 			if (!validCells.Contains(cell))
 			{
-				GameObject.Destroy(cell);
+				Destroy(cell);
 				invalidPositions.Add(pair.Key);
 			}
 		}
@@ -94,6 +145,6 @@ public class TerrainGenerator : MonoBehaviour
 	}
 
 	void Update () {
-        UpdateCells (target.transform.position, 170, 100, 100, heightmap);
+        UpdateCells (target.transform.position, 170, 60, 60);
     }
 }
