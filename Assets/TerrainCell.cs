@@ -50,10 +50,13 @@ public class TerrainCell : MonoBehaviour {
                 float height = datum.height;
                 float moisture = datum.moisture;
                 float specles = datum.specles;
+                float snoweyness = datum.snow;
 
                 Color low = new Color(73 / 256f, 38 / 256f, 21 / 256f);
                 Color high = new Color(67 / 256f, 103 / 256f, 13 / 256f);
                 Color specled = new Color(0, 0, 0);
+
+                Color snow = Color.white;
 
                 Color highMoist = new Color(127 / 256f, 183 / 256f, 142 / 256f);
                 Color lowMoist = new Color(0, 27 / 256f, 28 / 256f);
@@ -61,8 +64,9 @@ public class TerrainCell : MonoBehaviour {
                 Color dry = Color.Lerp(low, high, height);
                 Color moist = Color.Lerp(lowMoist, highMoist, height);
                 specled = Color.Lerp(dry, specled, specles);
+                Color snowey = Color.Lerp(specled, snow, snoweyness);
 
-                colors[x + z * width] = Color.Lerp(specled, moist, moisture);
+                colors[x + z * width] = Color.Lerp(snowey, moist, moisture);
             }
         }
 
@@ -115,16 +119,18 @@ public class TerrainCell : MonoBehaviour {
 
 public struct HeightMapDatum
 {
-    public HeightMapDatum(float height, float moisture, float specles)
+    public HeightMapDatum(float height, float moisture, float specles, float snow)
     {
         this.height = height;
         this.moisture = moisture;
         this.specles = specles;
+        this.snow = snow;
     }
 
     public float height;
     public float moisture;
     public float specles;
+    public float snow;
 }
 
 public class HeightMap {

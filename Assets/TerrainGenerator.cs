@@ -16,7 +16,7 @@ public class TerrainGenerator : MonoBehaviour
     {
         seed = Random.Range(-100f, 100f);
         cells = new Dictionary<Vector2, GameObject>();
-        UpdateCells(target.transform.position, 170, 50, 50, 100);
+        UpdateCells(target.transform.position, 140, 40, 40, 100);
     }
 
     HeightMapDatum TerrainGen(float x, float z)
@@ -26,6 +26,7 @@ public class TerrainGenerator : MonoBehaviour
         float height = Mathf.Pow(Mathf.Clamp(Mathf.PerlinNoise(-seed + x / 21, seed + z / 21) * maxHeight, 0, maxHeight), 1 / quality);
         float moisture = Mathf.Clamp(Mathf.PerlinNoise(seed + x / 1000, -seed + z / 1000), 0, 1) / 2.25f;
         float specles = Random.Range(0f, Mathf.Clamp(Mathf.PerlinNoise(seed + x / 100, seed + z / 100) * 0.15f, 0.01f, 0.1f));
+        float snow = Mathf.Pow(moisture, Mathf.PerlinNoise(seed + x / 250, seed + z / 250) * Mathf.PerlinNoise(seed + x / 25, -seed + z / 25) * 2);
 
         height -= specles / 15;
 
@@ -40,7 +41,7 @@ public class TerrainGenerator : MonoBehaviour
             moisture = Mathf.Min(moisture * 2, 0.6f);
         }
 
-        return new HeightMapDatum(height, moisture, specles);
+        return new HeightMapDatum(height, moisture, specles, snow);
     }
 
 	void UpdateCells(Vector3 center, float radius, int xScale, int zScale, int maxGenerate)
@@ -163,6 +164,6 @@ public class TerrainGenerator : MonoBehaviour
 	}
 
 	void Update () {
-        UpdateCells (target.transform.position, 170, 50, 50, 1);
+        UpdateCells (target.transform.position, 140, 40, 40, 1);
     }
 }
