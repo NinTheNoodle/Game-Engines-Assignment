@@ -6,41 +6,46 @@ using System.Linq;
 public class TerrainGenerator : MonoBehaviour
 {
 	public GameObject target;
+    public GameObject particles;
 
 	Dictionary<Vector2, GameObject> cells;
+    float seed;
     
 
 	void Start ()
     {
-		cells = new Dictionary<Vector2, GameObject>();
+        seed = Random.Range(-100f, 100f);
+        cells = new Dictionary<Vector2, GameObject>();
+        UpdateCells(target.transform.position, 170, 50, 50, 100);
     }
 
-	Texture2D GenerateTexture(HeightMap heightmap, Vector3 offset, int width, int depth)
+    HeightMapDatum TerrainGen(float x, float z)
     {
-		Texture2D texture = new Texture2D (width, depth);
-		Color[] colors = new Color[texture.width * texture.height];
+        float quality = 0.5f + Mathf.Clamp(Mathf.PerlinNoise(-seed + x / 150, seed + z / 150), 0, 1) * 1.5f;
+        float maxHeight = 0.1f + Mathf.Clamp(Mathf.PerlinNoise(seed + x / 200, -seed + z / 200), 0, 1) * 0.9f;
+        float height = Mathf.Pow(Mathf.Clamp(Mathf.PerlinNoise(-seed + x / 21, seed + z / 21) * maxHeight, 0, maxHeight), 1 / quality);
+        float moisture = Mathf.Clamp(Mathf.PerlinNoise(seed + x / 1000, -seed + z / 1000), 0, 1) / 2.25f;
+        float specles = Random.Range(0f, Mathf.Clamp(Mathf.PerlinNoise(seed + x / 100, seed + z / 100) * 0.15f, 0.01f, 0.1f));
 
-		for (int z = 0; z < depth; z++)
+        height -= specles / 15;
+
+        if (height <= 0)
         {
-			for (int x = 0; x < width; x++)
-            {
-				colors[x + z * width] = new Color(
-                    Mathf.PingPong((offset.x + x) / 100, 1),
-                    Mathf.PingPong((offset.z + z) / 100, 1),
-                    1 - heightmap.GetHeight((int)offset.x + x, (int)offset.z + z)
-                );
-			}
-		}
+            height = 0.05f;
+        }
 
-		texture.SetPixels(colors);
-		texture.Apply ();
-        texture.wrapMode = TextureWrapMode.Clamp;
-        texture.filterMode = FilterMode.Point;
-		return texture;
-	}
+        if (moisture > height)
+        {
+            height = Mathf.Max(height, moisture);
+            moisture = Mathf.Min(moisture * 2, 0.6f);
+        }
 
-	void UpdateCells(Vector3 center, float radius, int xScale, int zScale)
+        return new HeightMapDatum(height, moisture, specles);
+    }
+
+	void UpdateCells(Vector3 center, float radius, int xScale, int zScale, int maxGenerate)
     {
+        int generateCount = 0;
         center = new Vector3(center.x / transform.localScale.x, center.y / transform.localScale.y, center.z / transform.localScale.z);
         HashSet<GameObject> validCells = new HashSet<GameObject> ();
 
@@ -60,17 +65,31 @@ public class TerrainGenerator : MonoBehaviour
                     }
                     else
                     {
+                        generateCount += 1;
+                        if (generateCount > maxGenerate)
+                            continue;
                         cell = new GameObject();
+
                         TerrainCell cellComponent = cell.AddComponent<TerrainCell>();
-
                         cell.transform.parent = transform;
-                        cell.transform.position = new Vector3(x * transform.localScale.x, 0, z * transform.localScale.z);
-                        cell.transform.localScale = new Vector3(xScale, 1, zScale);
+                        cell.transform.position = new Vector3((x * transform.localScale.x) / (1 + transform.localScale.x),
+                            0,
+                            (z * transform.localScale.z) / (1 + transform.localScale.z));
+                        cell.transform.localScale = Vector3.one;
 
+                        GameObject newParticles = GameObject.Instantiate(particles);
+
+                        
+                        newParticles.transform.position = new Vector3(x * transform.localScale.x, 700, z * transform.localScale.z);
+                        
+                        newParticles.transform.parent = transform;
+
+
+                        cellComponent.particles = newParticles;
                         cellComponent.width = xScale;
                         cellComponent.depth = zScale;
                         cellComponent.height = 1;
-                        cellComponent.heightmap = new HeightMap(xScale, zScale, pos);
+                        cellComponent.heightmap = new HeightMap(xScale, zScale, pos, TerrainGen);
                         
                         try
                         {
@@ -119,8 +138,6 @@ public class TerrainGenerator : MonoBehaviour
                         }
                         catch (KeyNotFoundException) { }
 
-                        cellComponent.texture = GenerateTexture(cellComponent.heightmap, new Vector3(-xScale / 2, 0, -zScale / 2), xScale, zScale);
-
                         cells[pos] = cell;
                     }
                     validCells.Add(cell);
@@ -134,7 +151,8 @@ public class TerrainGenerator : MonoBehaviour
 			GameObject cell = pair.Value;
 			if (!validCells.Contains(cell))
 			{
-				Destroy(cell);
+                Destroy(cell.GetComponent<TerrainCell>().particles);
+                Destroy(cell);
 				invalidPositions.Add(pair.Key);
 			}
 		}
@@ -145,6 +163,6 @@ public class TerrainGenerator : MonoBehaviour
 	}
 
 	void Update () {
-        UpdateCells (target.transform.position, 170, 60, 60);
+        UpdateCells (target.transform.position, 170, 50, 50, 1);
     }
 }
